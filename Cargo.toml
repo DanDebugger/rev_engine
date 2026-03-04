@@ -37,6 +37,10 @@ edition = "2024"
     webp = "0.3.1"
     argon2 = "0.5"
     rand_core = { version = "0.6", features = ["std"] }
+pgvector = { version = "0.4.1", features = ["sqlx"] }
+scraper = "0.25.0"
+pdf-extract = "0.10.0"
+text-splitter = "0.29.3"
 
     [[bin]]
     name = "rev_engine"

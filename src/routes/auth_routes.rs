@@ -5,6 +5,8 @@ use crate::api::auth_login_attempts as login_attempts;
 use crate::api::auth_profile as profile;
 use crate::api::team;
 use crate::api::project;
+use crate::api::chat;
+use crate::api::rag;
 
 pub fn routes() -> Router {
     Router::new()
@@ -27,6 +29,10 @@ pub fn routes() -> Router {
         .route("/projects", get(project::get_projects))
         .route("/projects", post(project::create_project))
         .route("/projects/{id}/updates", post(project::post_update))
+        .route("/chat", post(chat::handle_chat))
+        .route("/ingest/text", post(rag::ingest_text))
+        .route("/ingest/url", post(rag::ingest_url))
+        .route("/ingest/pdf", post(rag::ingest_pdf))
 }
 
 async fn root_handler() -> &'static str {

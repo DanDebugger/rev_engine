@@ -6,6 +6,7 @@ pub mod db;
 pub mod limiter;
 pub mod models;
 pub mod security;
+pub mod infra;
 
 // use axum::{body::Body, extract::State, http::{Method, Request, StatusCode}, middleware::{self, Next}, response::Response, Extension};
 use axum::{http::{Method}, middleware::{self}, Extension};
