@@ -25,7 +25,7 @@ pub async fn ingest_text(
     Json(payload): Json<TextIngestRequest>,
 ) -> Result<Response, Response> {
     let source = DocumentSource::Text(payload.text);
-    match ingest_document(&pool, &payload.title, source, None).await {
+    match ingest_document(&pool, &payload.title, source, None, None).await {
         Ok(doc_id) => Ok(Json(json!({ "status": "success", "document_id": doc_id })).into_response()),
         Err(e) => {
             tracing::error!("Text ingestion failed: {}", e);
@@ -39,7 +39,7 @@ pub async fn ingest_url(
     Json(payload): Json<UrlIngestRequest>,
 ) -> Result<Response, Response> {
     let source = DocumentSource::Url(payload.url.clone());
-    match ingest_document(&pool, &payload.title, source, Some(payload.url)).await {
+    match ingest_document(&pool, &payload.title, source, Some(payload.url), None).await {
         Ok(doc_id) => Ok(Json(json!({ "status": "success", "document_id": doc_id })).into_response()),
         Err(e) => {
             tracing::error!("URL ingestion failed: {}", e);
@@ -69,7 +69,7 @@ pub async fn ingest_pdf(
     }
 
     let source = DocumentSource::Pdf(pdf_bytes);
-    match ingest_document(&pool, &title, source, None).await {
+    match ingest_document(&pool, &title, source, None, None).await {
         Ok(doc_id) => Ok(Json(json!({ "status": "success", "document_id": doc_id })).into_response()),
         Err(e) => {
             tracing::error!("PDF ingestion failed: {}", e);

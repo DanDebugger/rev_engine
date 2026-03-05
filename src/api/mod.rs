@@ -7,3 +7,4 @@ pub mod team;
 pub mod project;
 pub mod chat;
 pub mod rag;
+pub mod llm;

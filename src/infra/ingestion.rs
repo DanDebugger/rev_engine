@@ -3,7 +3,8 @@ use pgvector::Vector;
 use sqlx::PgPool;
 use text_splitter::TextSplitter;
 use scraper::{Html, Selector};
-use pdf_extract::extract_text_from_mem;
+// Replaced pdf_extract with lopdf for PDF text extraction
+use lopdf::Document;
 use uuid::Uuid;
 
 pub enum DocumentSource {
@@ -17,6 +18,7 @@ pub async fn ingest_document(
     title: &str,
     source: DocumentSource,
     source_url: Option<String>,
+    embedding_model_override: Option<&str>,
 ) -> Result<Uuid, String> {
     // 1. Extract raw text
     let (raw_text, source_type) = match source {
@@ -46,15 +48,31 @@ pub async fn ingest_document(
             (extracted, "web")
         },
         DocumentSource::Pdf(bytes) => {
-            let text = extract_text_from_mem(&bytes)
-                .map_err(|e| format!("Failed to extract PDF: {:?}", e))?;
-            (text, "pdf")
+            // Simple PDF text extraction using lopdf. This extracts raw text from each page.
+            let doc = Document::load_mem(&bytes)
+                .map_err(|e| format!("Failed to load PDF: {}", e))?;
+            let mut extracted = String::new();
+            for page_id in doc.get_pages().values() {
+                if let Ok(content) = doc.get_page_content(*page_id) {
+                    if let Ok(text) = std::str::from_utf8(&content) {
+                        extracted.push_str(text);
+                        extracted.push('\n');
+                    }
+                }
+            }
+            if extracted.is_empty() {
+                return Err("Extracted PDF text is empty".to_string());
+            }
+            (extracted, "pdf")
         }
     };
 
     if raw_text.trim().is_empty() {
+        tracing::error!("Extracted text is empty or mostly whitespace.");
         return Err("Extracted text is empty".to_string());
     }
+
+    tracing::info!("Extracted {} bytes of raw text from {}", raw_text.len(), source_type);
 
     // 2. Insert Document metadata
     let doc_id = sqlx::query_scalar::<_, Uuid>(
@@ -78,7 +96,7 @@ pub async fn ingest_document(
 
     // 4. Generate Embeddings & Insert chunks
     for (i, chunk) in chunks.iter().enumerate() {
-        let embedding = generate_embedding(chunk).await?;
+        let embedding = generate_embedding(chunk, embedding_model_override).await?;
         let vector = Vector::from(embedding);
 
         sqlx::query(
