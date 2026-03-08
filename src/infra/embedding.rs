@@ -29,11 +29,12 @@ async fn generate_embedding_gemini(text: &str) -> Result<Vec<f32>, String> {
     let api_key = env::var("GEMINI_API_KEY").map_err(|_| "GEMINI_API_KEY not set")?;
     let client = Client::new();
     let url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={}",
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key={}",
         api_key
     );
     let payload = json!({
-        "content": { "parts": [{ "text": text }] }
+        "content": { "parts": [{ "text": text }] },
+        "outputDimensionality": 768
     });
     let res = client
         .post(&url)

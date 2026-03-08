@@ -41,6 +41,8 @@ pgvector = { version = "0.4.1", features = ["sqlx"] }
 scraper = "0.25.0"
 text-splitter = "0.29.3"
 lopdf = "0.39.0"
+async-trait = "0.1.89"
+thiserror = "2.0.18"
 
     [[bin]]
     name = "rev_engine"

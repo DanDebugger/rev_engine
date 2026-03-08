@@ -4,7 +4,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use base64::Engine;
-use reqwest::Client;
+
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::PgPool;
@@ -153,89 +153,49 @@ pub async fn handle_chat(
         }
     }
 
-    let system_instruction = if rag_context.is_empty() {
-        format!(
-            "You are the SYS Core AI for Reverion Tech. Answer concisely in a brutalist, robotic, hyper-efficient tone.\n\nCOMPANY CONTACT INFO:\n- Email: contact@reverion.tech\n- Form: The user can use the 'Contact Us' form available on the main landing page to reach the team directly.\n\nHere is the current live context:\n\n{}",
-            team_context
-        )
-    } else {
-        format!(
-            "You are the SYS Core AI for Reverion Tech. HOWEVER, the user has just provided you with a DOCUMENT REFERENCE. You MUST prioritize answering their question based ON THE DOCUMENT provided below. Be helpful and analytical about the document content.\n\n{}\n\n(Fallback context if needed:\n{})",
-            rag_context, team_context
-        )
-    };
+    let mut system_instruction = String::from(
+        "You are Reverion Tech's Lead AI Business Consultant. You communicate with the sharp, professional, and clear tone of a senior executive. ALWAYS respond logically, offering strategic business value when answering. You are FORBIDDEN from fetching external data or hallucinating facts. You must STRICTLY answer ONLY using the exact context provided below. If the answer is not in the context, clearly professionaly state that you don't have that data.\n\nCOMPANY CONTACT INFO:\n- Email: contact@reverion.tech\n- Form: The user can use the 'Contact Us' form available on the main landing page.\n\n"
+    );
 
-    // 2. Format Request for OpenRouter REST API
-    let mut messages = Vec::new();
-    
-    // Add system instruction first
-    messages.push(json!({
-        "role": "system",
-        "content": system_instruction
-    }));
-
-    for msg in &payload.messages {
-        let role = if msg.role == "ai" || msg.role == "model" { "assistant" } else { "user" };
-        
-        let mut text_content = String::new();
-        for part in &msg.parts {
-            if let Some(t) = &part.text {
-                text_content.push_str(t);
-                text_content.push('\n');
-            }
-        }
-
-        messages.push(json!({
-            "role": role,
-            "content": text_content.trim()
-        }));
+    if !rag_context.is_empty() {
+        system_instruction.push_str("DOCUMENT REFERENCE KNOWLEDGE (PRIORITIZE THIS):\n");
+        system_instruction.push_str(&rag_context);
+        system_instruction.push_str("\n\n");
     }
 
+    system_instruction.push_str("TEAM CONTEXT:\n");
+    system_instruction.push_str(&team_context);
+
+    // 2. Generate Response via LlmClient
     let chat_model = payload
         .chat_model
         .clone()
         .unwrap_or_else(llm::chat_model_from_env);
 
-    let openrouter_payload = json!({
-        "model": chat_model,
-        "messages": messages,
-        "temperature": 0.3
-    });
+    let is_gemini_direct = chat_model.starts_with("gemini-") || chat_model.starts_with("google/");
+    let provider: std::sync::Arc<dyn llm::LlmProvider> = if is_gemini_direct && env::var("OPENROUTER_API_KEY").is_err() {
+        let gemini_key = env::var("GEMINI_API_KEY").unwrap_or_else(|_| api_key.clone());
+        std::sync::Arc::new(llm::gemini::GeminiProvider::new(gemini_key))
+    } else {
+        std::sync::Arc::new(llm::openrouter::OpenRouterProvider::new(api_key.clone()))
+    };
 
-    let client = Client::new();
-    let url = "https://openrouter.ai/api/v1/chat/completions";
+    let client = llm::LlmClient { provider };
 
-    let res = client
-        .post(url)
-        .header("Authorization", format!("Bearer {}", api_key))
-        .header("HTTP-Referer", env::var("CLIENT_URL").unwrap_or_else(|_| "http://localhost:5173".to_string()))
-        .header("Content-Type", "application/json")
-        .json(&openrouter_payload)
-        .send()
+    let output_text = client
+        .provider
+        .generate_response(&system_instruction, &payload.messages, &chat_model)
         .await
         .map_err(|e| {
-            tracing::error!("Error calling OpenRouter: {:?}", e);
-            StatusCode::BAD_GATEWAY.into_response()
+            tracing::error!("LLM generate_response error: {:?}", e);
+            match e {
+                llm::LlmError::RateLimit => StatusCode::TOO_MANY_REQUESTS.into_response(),
+                _ => (
+                    StatusCode::BAD_GATEWAY,
+                    Json(json!({ "error": "AI processing failed", "details": e.to_string() }))
+                ).into_response(),
+            }
         })?;
-
-    if !res.status().is_success() {
-        let err_body = res.text().await.unwrap_or_default();
-        tracing::error!("OpenRouter API returned an error: {}", err_body);
-        return Err((
-            StatusCode::BAD_GATEWAY,
-            Json(json!({ "error": "AI processing failed", "details": err_body }))
-        ).into_response());
-    }
-
-    let openrouter_data: serde_json::Value = res.json().await.map_err(|e| {
-        tracing::error!("Failed to parse OpenRouter response: {:?}", e);
-        StatusCode::INTERNAL_SERVER_ERROR.into_response()
-    })?;
-
-    let output_text = openrouter_data["choices"][0]["message"]["content"]
-        .as_str()
-        .unwrap_or("NO RESPONDING DATALINK.")
-        .to_string();
 
     Ok(Json(json!({ "text": output_text })).into_response())
 }

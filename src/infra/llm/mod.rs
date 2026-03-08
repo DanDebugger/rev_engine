@@ -1,4 +1,26 @@
+pub mod traits;
+pub mod openrouter;
+pub mod gemini;
+
+pub use traits::{LlmError, LlmProvider};
+
+use std::sync::Arc;
 use std::env;
+
+/// A unified wrapper ready for dependency injection into state/services.
+#[derive(Clone)]
+pub struct LlmClient {
+    pub provider: Arc<dyn LlmProvider>,
+}
+
+impl LlmClient {
+    pub fn new(provider: impl LlmProvider + 'static) -> Self {
+        Self {
+            provider: Arc::new(provider),
+        }
+    }
+}
+
 
 /// Central configuration helpers for LLM and embedding models.
 pub fn chat_model_from_env() -> String {
