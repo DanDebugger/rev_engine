@@ -43,6 +43,8 @@ text-splitter = "0.29.3"
 lopdf = "0.39.0"
 async-trait = "0.1.89"
 thiserror = "2.0.18"
+aes-gcm = "0.10.3"
+rand = "0.8"
 
     [[bin]]
     name = "rev_engine"

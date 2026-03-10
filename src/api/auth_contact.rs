@@ -8,34 +8,32 @@ use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 use crate::models::contact_request::{ContactRequest, CreateContactRequest};
+use crate::utils::crypto::decrypt_payload;
+use crate::models::contact_request::EncryptedPayload;
+
+const SECRET_KEY: [u8; 32] = *b"super_secure_key_32_bytes_length";
 
 pub async fn submit_contact(
     Extension(pool): Extension<PgPool>,
-    Json(payload): Json<CreateContactRequest>,
+    Json(body): Json<EncryptedPayload>,
 ) -> Result<Response, Response> {
-    // Validate required fields
+
+    let decrypted = decrypt_payload(&SECRET_KEY, &body.payload)
+        .map_err(|_| StatusCode::BAD_REQUEST.into_response())?;
+
+    let payload: CreateContactRequest = serde_json::from_str(&decrypted)
+        .map_err(|_| StatusCode::BAD_REQUEST.into_response())?;
+
     if payload.name.trim().is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
             Json(json!({ "error": "Name is required" })),
         ).into_response());
     }
-    if payload.email.trim().is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "Email is required" })),
-        ).into_response());
-    }
-    if payload.description.trim().is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "Project description is required" })),
-        ).into_response());
-    }
 
     let contact: ContactRequest = sqlx::query_as::<sqlx::Postgres, ContactRequest>(
-        "INSERT INTO contact_requests (name, email, company, service, budget, description, timeline) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *"
+        "INSERT INTO contact_requests (name, email, company, service, budget, description, timeline)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *"
     )
     .bind(payload.name.trim())
     .bind(payload.email.trim())
@@ -46,10 +44,7 @@ pub async fn submit_contact(
     .bind(payload.timeline.trim())
     .fetch_one(&pool)
     .await
-    .map_err(|e| {
-        tracing::error!("Failed to insert contact request: {:?}", e);
-        StatusCode::INTERNAL_SERVER_ERROR.into_response()
-    })?;
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())?;
 
     Ok(Json(contact).into_response())
 }

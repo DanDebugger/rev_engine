@@ -31,3 +31,7 @@ pub struct CreateContactRequest {
     #[serde(default)]
     pub timeline: String,
 }
+#[derive(Debug, Deserialize)]
+pub struct EncryptedPayload {
+    pub payload: String,
+}

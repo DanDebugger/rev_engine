@@ -7,6 +7,8 @@ use scraper::{Html, Selector};
 use lopdf::Document;
 use uuid::Uuid;
 
+const MAX_CHUNKS_PER_DOCUMENT: usize = 100;
+
 pub enum DocumentSource {
     Text(String),
     Url(String),
@@ -88,7 +90,16 @@ pub async fn ingest_document(
     // 3. Chunk text
     // Using roughly 1000 character chunks max
     let splitter = TextSplitter::new(1000);
-    let chunks: Vec<&str> = splitter.chunks(&raw_text).collect();
+    let mut chunks: Vec<&str> = splitter.chunks(&raw_text).collect();
+
+    if chunks.len() > MAX_CHUNKS_PER_DOCUMENT {
+        tracing::warn!(
+            "Document has {} chunks; truncating to first {} chunks for ingestion",
+            chunks.len(),
+            MAX_CHUNKS_PER_DOCUMENT
+        );
+        chunks.truncate(MAX_CHUNKS_PER_DOCUMENT);
+    }
 
     if chunks.is_empty() {
         return Ok(doc_id);
