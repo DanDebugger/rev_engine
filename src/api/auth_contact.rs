@@ -13,16 +13,20 @@ use crate::models::contact_request::EncryptedPayload;
 
 const SECRET_KEY: [u8; 32] = *b"super_secure_key_32_bytes_length";
 
+fn json_error(status: StatusCode, message: &str) -> Response {
+    (status, Json(json!({ "error": message }))).into_response()
+}
+
 pub async fn submit_contact(
     Extension(pool): Extension<PgPool>,
     Json(body): Json<EncryptedPayload>,
 ) -> Result<Response, Response> {
 
     let decrypted = decrypt_payload(&SECRET_KEY, &body.payload)
-        .map_err(|_| StatusCode::BAD_REQUEST.into_response())?;
+        .map_err(|_| json_error(StatusCode::BAD_REQUEST, "Invalid encrypted payload"))?;
 
     let payload: CreateContactRequest = serde_json::from_str(&decrypted)
-        .map_err(|_| StatusCode::BAD_REQUEST.into_response())?;
+        .map_err(|_| json_error(StatusCode::BAD_REQUEST, "Invalid contact request JSON"))?;
 
     if payload.name.trim().is_empty() {
         return Err((
@@ -44,7 +48,10 @@ pub async fn submit_contact(
     .bind(payload.timeline.trim())
     .fetch_one(&pool)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())?;
+    .map_err(|e| {
+        tracing::error!("Failed to insert contact request: {:?}", e);
+        json_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to submit contact request")
+    })?;
 
     Ok(Json(contact).into_response())
 }
@@ -59,7 +66,7 @@ pub async fn list_contacts(
     .await
     .map_err(|e| {
         tracing::error!("Failed to list contact requests: {:?}", e);
-        StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        json_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to list contact requests")
     })?;
 
     Ok(Json(rows).into_response())
@@ -90,7 +97,7 @@ pub async fn update_contact_status(
         .await
         .map_err(|e| {
             tracing::error!("Failed to update contact status: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            json_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to update contact status")
         })?;
 
     Ok(Json(json!({ "ok": true })).into_response())
@@ -106,7 +113,7 @@ pub async fn delete_contact(
         .await
         .map_err(|e| {
             tracing::error!("Failed to delete contact request: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            json_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to delete contact request")
         })?;
 
     Ok(Json(json!({ "ok": true })).into_response())
@@ -120,7 +127,7 @@ pub async fn clear_contacts(
         .await
         .map_err(|e| {
             tracing::error!("Failed to clear contact requests: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            json_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to clear contact requests")
         })?;
 
     Ok(Json(json!({ "ok": true })).into_response())
