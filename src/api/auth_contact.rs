@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 use crate::models::contact_request::{ContactRequest, CreateContactRequest};
-use crate::utils::crypto::decrypt_payload;
+use crate::utils::crypto::{decrypt_payload, encrypt_payload};
 use crate::models::contact_request::EncryptedPayload;
 
 const SECRET_KEY: [u8; 32] = *b"super_secure_key_32_bytes_length";
@@ -53,7 +53,11 @@ pub async fn submit_contact(
         json_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to submit contact request")
     })?;
 
-    Ok(Json(contact).into_response())
+    let contact_json = serde_json::to_string(&contact).unwrap();
+    let encrypted_resp = encrypt_payload(&SECRET_KEY, &contact_json)
+        .map_err(|_| json_error(StatusCode::INTERNAL_SERVER_ERROR, "Encryption failed"))?;
+
+    Ok(Json(json!({ "payload": encrypted_resp })).into_response())
 }
 
 pub async fn list_contacts(
@@ -69,7 +73,11 @@ pub async fn list_contacts(
         json_error(StatusCode::INTERNAL_SERVER_ERROR, "Failed to list contact requests")
     })?;
 
-    Ok(Json(rows).into_response())
+    let list_json = serde_json::to_string(&rows).unwrap();
+    let encrypted_resp = encrypt_payload(&SECRET_KEY, &list_json)
+        .map_err(|_| json_error(StatusCode::INTERNAL_SERVER_ERROR, "Encryption failed"))?;
+
+    Ok(Json(json!({ "payload": encrypted_resp })).into_response())
 }
 
 #[derive(Debug, Deserialize)]
