@@ -24,7 +24,7 @@ impl LlmClient {
 
 /// Central configuration helpers for LLM and embedding models.
 pub fn chat_model_from_env() -> String {
-    env::var("CHAT_MODEL").unwrap_or_else(|_| "openrouter/free".to_string())
+    env::var("CHAT_MODEL").unwrap_or_else(|_| "google/gemini-2.5-flash".to_string())
 }
 
 pub fn embedding_model_from_env() -> String {
@@ -41,10 +41,11 @@ pub struct ModelOption {
 /// Chat models available for selection (OpenRouter-style ids).
 pub fn available_chat_models() -> Vec<ModelOption> {
     vec![
-        ModelOption { id: "openrouter/free".to_string(), label: "Free (OpenRouter)".to_string() },
+        ModelOption { id: "google/gemini-2.5-flash".to_string(), label: "Gemini 2.5 Flash (Free)".to_string() },
+        ModelOption { id: "google/gemini-2.5-flash-lite".to_string(), label: "Gemini 2.5 Flash Lite (Free)".to_string() },
+        ModelOption { id: "google/gemini-2.5-pro".to_string(), label: "Gemini 2.5 Pro (Free)".to_string() },
+        ModelOption { id: "openrouter/auto-free".to_string(), label: "Auto Free (OpenRouter)".to_string() },
         ModelOption { id: "openai/gpt-4o-mini".to_string(), label: "GPT-4o Mini".to_string() },
-        ModelOption { id: "openai/gpt-4o".to_string(), label: "GPT-4o".to_string() },
-        ModelOption { id: "google/gemini-2.0-flash-001".to_string(), label: "Gemini 2.0 Flash".to_string() },
         ModelOption { id: "anthropic/claude-3.5-sonnet".to_string(), label: "Claude 3.5 Sonnet".to_string() },
     ]
 }

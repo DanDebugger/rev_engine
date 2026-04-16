@@ -75,10 +75,13 @@ impl LlmProvider for OpenRouterProvider {
         if !res.status().is_success() {
             let status = res.status();
             let err_body = res.text().await.unwrap_or_default();
-            tracing::error!("OpenRouter API returned an error: {}", err_body);
+            tracing::error!("OpenRouter API error (Status: {}): {}", status, err_body);
             
             if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
                 return Err(LlmError::RateLimit);
+            }
+            if status == reqwest::StatusCode::PAYMENT_REQUIRED {
+                return Err(LlmError::PaymentRequired);
             }
             return Err(LlmError::ApiError(format!("OpenRouter returned {}: {}", status, err_body)));
         }

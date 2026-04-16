@@ -31,6 +31,8 @@ pub fn routes() -> Router {
         .route("/projects", post(project::create_project))
         .route("/projects/{id}/updates", post(project::post_update))
         .route("/chat", post(chat::handle_chat))
+        .route("/chat/conversations", get(chat::list_conversations))
+        .route("/chat/conversations/{id}/messages", get(chat::get_conversation_history))
         .route("/llm/models", get(api_llm::list_models))
         .route("/ingest/text", post(rag::ingest_text))
         .route("/ingest/url", post(rag::ingest_url))

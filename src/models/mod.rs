@@ -4,3 +4,4 @@ pub mod login_attempt;
 pub mod profile;
 pub mod team_member;
 pub mod project;
+pub mod chat;

@@ -77,6 +77,7 @@ async fn main() {
         .layer(middleware::from_fn(move |req, next| {
             enforce_concurrency(limiter.clone(), req, next)
         }))
+        .layer(middleware::from_fn(utils::security::security_layer))
         .layer(cors)
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::STRICT_TRANSPORT_SECURITY,

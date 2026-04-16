@@ -8,6 +8,8 @@ pub enum LlmError {
     ApiError(String),
     #[error("Rate limit exceeded")]
     RateLimit,
+    #[error("Billing or credit limit reached (402 Payment Required)")]
+    PaymentRequired,
     #[error("Internal service error: {0}")]
     Internal(String),
 }

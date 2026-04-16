@@ -72,22 +72,41 @@ impl LlmProvider for GeminiProvider {
         if !res.status().is_success() {
             let status = res.status();
             let err_body = res.text().await.unwrap_or_default();
-            tracing::error!("Gemini API error: {}", err_body);
+            tracing::error!("Gemini API error (Status: {}): {}", status, err_body);
             
             if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
                 return Err(LlmError::RateLimit);
+            }
+            if status == reqwest::StatusCode::PAYMENT_REQUIRED {
+                return Err(LlmError::PaymentRequired);
             }
             return Err(LlmError::ApiError(format!("Gemini returned {}: {}", status, err_body)));
         }
 
         let gemini_data: serde_json::Value = res.json().await.map_err(|e| {
+            tracing::error!("Failed to parse Gemini JSON: {:?}", e);
             LlmError::Internal(format!("Failed to parse Gemini response: {}", e))
         })?;
 
+        // Handle possible safety blocks or empty candidates
         let output_text = gemini_data["candidates"][0]["content"]["parts"][0]["text"]
             .as_str()
-            .unwrap_or("NO RESPONDING DATALINK.")
-            .to_string();
+            .map(|s| s.to_string())
+            .or_else(|| {
+                if let Some(reason) = gemini_data["promptFeedback"]["blockReason"].as_str() {
+                    tracing::warn!("Gemini blocked prompt: {}", reason);
+                    Some(format!("REVERION_SECURE_BLOCK: {}", reason))
+                } else if let Some(finish_reason) = gemini_data["candidates"][0]["finishReason"].as_str() {
+                    tracing::warn!("Gemini finished early: {}", finish_reason);
+                    Some(format!("REVERION_FINISH_REASON: {}", finish_reason))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| {
+                tracing::error!("Gemini response missing text. Data: {:?}", gemini_data);
+                "NO RESPONDING DATALINK.".to_string()
+            });
 
         Ok(output_text)
     }
