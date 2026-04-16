@@ -1,6 +1,7 @@
 pub mod traits;
 pub mod openrouter;
 pub mod gemini;
+pub mod openai;
 
 pub use traits::{LlmError, LlmProvider};
 

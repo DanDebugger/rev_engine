@@ -54,9 +54,10 @@ pub async fn handle_chat(
 ) -> Result<Response, Response> {
     let openrouter_key = env::var("OPENROUTER_API_KEY").ok();
     let gemini_key = env::var("GEMINI_API_KEY").ok();
+    let openai_key = env::var("OPENAI_API_KEY").ok();
 
-    if openrouter_key.is_none() && gemini_key.is_none() {
-        tracing::error!("Neither OPENROUTER_API_KEY nor GEMINI_API_KEY set in backend environment");
+    if openrouter_key.is_none() && gemini_key.is_none() && openai_key.is_none() {
+        tracing::error!("No LLM API keys set in backend environment");
         return Err(StatusCode::INTERNAL_SERVER_ERROR.into_response());
     }
 
@@ -174,19 +175,37 @@ pub async fn handle_chat(
     // Determine the sequence of providers to try to maximize availability
     let mut attempts: Vec<(std::sync::Arc<dyn llm::LlmProvider>, String, &'static str)> = Vec::new();
     
-    if chat_model.starts_with("gemini-") || chat_model.starts_with("google/") {
+    if chat_model.starts_with("openai/") || chat_model.starts_with("gpt-") {
+        // OpenAI models: OpenAI Direct -> OpenRouter -> Gemini fallback
+        if let Some(key) = openai_key.clone() {
+            attempts.push((std::sync::Arc::new(llm::openai::OpenAiProvider::new(key)), chat_model.clone(), "OpenAI Direct"));
+        }
+        if let Some(key) = openrouter_key.clone() {
+            attempts.push((std::sync::Arc::new(llm::openrouter::OpenRouterProvider::new(key)), chat_model.clone(), "OpenRouter (OpenAI)"));
+        }
+        if let Some(key) = gemini_key.clone() {
+            attempts.push((std::sync::Arc::new(llm::gemini::GeminiProvider::new(key)), "gemini-2.5-flash".to_string(), "Gemini Fallback"));
+        }
+    } else if chat_model.starts_with("gemini-") || chat_model.starts_with("google/") {
+        // Google models: Gemini Direct -> OpenRouter -> OpenAI fallback
         if let Some(key) = gemini_key.clone() {
             attempts.push((std::sync::Arc::new(llm::gemini::GeminiProvider::new(key)), chat_model.clone(), "Gemini Direct"));
         }
         if let Some(key) = openrouter_key.clone() {
             attempts.push((std::sync::Arc::new(llm::openrouter::OpenRouterProvider::new(key)), chat_model.clone(), "OpenRouter (Gemini)"));
         }
+        if let Some(key) = openai_key.clone() {
+            attempts.push((std::sync::Arc::new(llm::openai::OpenAiProvider::new(key)), "gpt-4o-mini".to_string(), "OpenAI Fallback"));
+        }
     } else {
+        // Other models (Anthropic, etc.): OpenRouter -> OpenAI -> Gemini fallback
         if let Some(key) = openrouter_key.clone() {
             attempts.push((std::sync::Arc::new(llm::openrouter::OpenRouterProvider::new(key)), chat_model.clone(), "OpenRouter"));
         }
+        if let Some(key) = openai_key.clone() {
+            attempts.push((std::sync::Arc::new(llm::openai::OpenAiProvider::new(key)), "gpt-4o-mini".to_string(), "OpenAI Fallback"));
+        }
         if let Some(key) = gemini_key.clone() {
-            // Best effort fallback: If OpenRouter is dead, try direct Gemini
             attempts.push((std::sync::Arc::new(llm::gemini::GeminiProvider::new(key)), "gemini-2.5-flash".to_string(), "Gemini Fallback"));
         }
     }
