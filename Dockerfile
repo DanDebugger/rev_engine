@@ -16,7 +16,7 @@ RUN cargo build --release || true
 # Build real source
 COPY . .
 ENV SQLX_OFFLINE=true
-RUN cargo build --release --bin wood-engine
+RUN cargo build --release --bin rev_engine
 
 # Stage 2: Runtime
 FROM debian:stable-slim
@@ -26,11 +26,11 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/target/release/wood-engine /usr/local/bin/wood-engine
+COPY --from=builder /app/target/release/rev_engine /usr/local/bin/rev_engine
 
 ENV RUST_LOG=info \
     PORT=8000
 
 EXPOSE 8000
 
-CMD ["rev-engine"]
+CMD ["rev_engine"]
