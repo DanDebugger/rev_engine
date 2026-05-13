@@ -134,3 +134,5 @@ pub async fn clear_contacts(
 
     Ok(Json(json!({ "ok": true })).into_response())
 }
+
+    
