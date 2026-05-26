@@ -22,7 +22,7 @@ services:
 
       DATABASE_URL: postgresql://postgres.fkyqtgczjgmoweppxrdz:FQSyT2An9aj1q32a@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres
       PORT: 8000
-      CLIENT_URL: http://localhost:5173
+      CLIENT_URL: https://reveriontech.com
       # Optional. Leave empty unless you want backend to prefix relative media paths.
 
     ports:
