@@ -21,10 +21,13 @@ pub async fn security_layer(req: Request<Body>, next: Next) -> Response {
         return response;
     }
 
-    // Only encrypt successful JSON-like responses OR as requested by user ("every response")
-    // We'll skip encryption for non-200 if desired, but user said "every response".
-    // However, we must be careful with streaming bodies.
-    
+    // Skip encryption for non-contact routes (only encrypt /auth/contact and /contacts/*)
+    let path = uri.path();
+    if path != "/auth/contact" && !path.starts_with("/contacts") {
+        tracing::debug!("Skipping security layer for non-contact path: {}", path);
+        return response;
+    }
+
     let (parts, body) = response.into_parts();
     
     // Extract preview if provided via extensions (optional feature)
@@ -38,8 +41,8 @@ pub async fn security_layer(req: Request<Body>, next: Next) -> Response {
 
     let plaintext = String::from_utf8_lossy(&bytes);
     
-    // Get encryption key from environment
-    let key_str = env::var("CRYPTO_KEY").unwrap_or_else(|_| "00000000000000000000000000000000".to_string());
+    // Get encryption key from environment, defaulting to the 32-byte key expected by the frontend
+    let key_str = env::var("CRYPTO_KEY").unwrap_or_else(|_| "super_secure_key_32_bytes_length".to_string());
     let mut key = [0u8; 32];
     let key_bytes = key_str.as_bytes();
     let len = key_bytes.len().min(32);
